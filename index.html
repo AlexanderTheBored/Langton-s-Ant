@@ -52,6 +52,21 @@
     input[type="range"] {
       width: 100px;
     }
+
+    #settingsPanel {
+      display: none;
+      position: absolute;
+      bottom: 4.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e1e1e;
+      color: white;
+      padding: 1rem 1.5rem;
+      border: 1px solid #444;
+      border-radius: 0.5rem;
+      z-index: 20;
+      min-width: 200px;
+    }
   </style>
 </head>
 <body>
@@ -65,7 +80,19 @@
   <span class="zoom-label">Zoom: <span id="zoomValue">1.0×</span></span>
 
 <input type="range" id="speedSlider" min="1" max="100" value="95" step="1" />
-  <span class="zoom-label">Speed: <span id="speedValue">20x</span></span>
+<span class="zoom-label">
+  Speed: <span id="speedValue">20x</span>
+  <button id="settingsBtn" title="Settings" style="font-size: 1rem; background: none; border: none; color: white; cursor: pointer;">⚙️</button>
+</span>
+</div>
+
+<div id="settingsPanel">
+<p style="margin: 0; font-size: 0.9rem;">
+  Ants: 
+  <input type="number" id="antCountInput" min="1" max="100" value="1" style="width: 50px;" />
+  <span id="antCountLabel" style="margin-left: 0.5rem; color: #ccc;">(1 active)</span>
+</p>
+  <button id="applySettingsBtn" style="margin-top: 0.5rem;">Apply</button>
 </div>
 
 <script>
@@ -77,10 +104,12 @@ const followBtn = document.getElementById('followBtn');
 const zoomDisplay = document.getElementById('zoomValue');
 const speedSlider = document.getElementById('speedSlider');
 const speedValue = document.getElementById('speedValue');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsPanel = document.getElementById('settingsPanel');
 
 let zoom = 10;
 let grid = {};
-let ant = { x: 0, y: 0, dir: 0 };
+let ants = [{ x: 0, y: 0, dir: 0 }];
 let running = false;
 let followAnt = true;
 let offsetX = 0;
@@ -118,8 +147,8 @@ function drawGrid() {
   const centerX = width / 2;
   const centerY = height / 2;
 
-  let cameraX = followAnt ? ant.x * cellSize : offsetX;
-  let cameraY = followAnt ? ant.y * cellSize : offsetY;
+  let cameraX = followAnt ? ants[0].x * cellSize : offsetX;
+  let cameraY = followAnt ? ants[0].y * cellSize : offsetY;
 
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, width, height);
@@ -153,28 +182,32 @@ function drawGrid() {
     }
   }
 
-  const antX = centerX + (ant.x * cellSize) - cameraX;
-  const antY = centerY + (ant.y * cellSize) - cameraY;
-  ctx.fillStyle = 'red';
-  ctx.fillRect(antX, antY, cellSize, cellSize);
+  ants.forEach((ant, index) => {
+    const antX = centerX + (ant.x * cellSize) - cameraX;
+    const antY = centerY + (ant.y * cellSize) - cameraY;
+    ctx.fillStyle = index === 0 ? 'red' : 'orange'; // main ant in red, others in orange
+    ctx.fillRect(antX, antY, cellSize, cellSize);
+  });
 }
 
 function step() {
-  const key = getKey(ant.x, ant.y);
-  if (!grid[key]) {
-    ant.dir = (ant.dir + 1) % 4;
-    grid[key] = 1;
-  } else {
-    ant.dir = (ant.dir + 3) % 4;
-    grid[key] = 0;
-  }
+  ants.forEach(ant => {
+    const key = getKey(ant.x, ant.y);
+    if (!grid[key]) {
+      ant.dir = (ant.dir + 1) % 4;
+      grid[key] = 1;
+    } else {
+      ant.dir = (ant.dir + 3) % 4;
+      grid[key] = 0;
+    }
 
-  switch (ant.dir) {
-    case 0: ant.y -= 1; break;
-    case 1: ant.x += 1; break;
-    case 2: ant.y += 1; break;
-    case 3: ant.x -= 1; break;
-  }
+    switch (ant.dir) {
+      case 0: ant.y -= 1; break;
+      case 1: ant.x += 1; break;
+      case 2: ant.y += 1; break;
+      case 3: ant.x -= 1; break;
+    }
+  });
 
   drawGrid();
 }
@@ -273,7 +306,32 @@ window.addEventListener('resize', resizeCanvas);
 // Init
 resizeCanvas();
 drawGrid();
-</script>
 
+settingsBtn.addEventListener('click', () => {
+  const isVisible = settingsPanel.style.display === 'block';
+  settingsPanel.style.display = isVisible ? 'none' : 'block';
+});
+
+const antCountInput = document.getElementById('antCountInput');
+const applySettingsBtn = document.getElementById('applySettingsBtn');
+
+applySettingsBtn.addEventListener('click', () => {
+  const count = Math.max(1, Math.min(100, parseInt(antCountInput.value)));
+ants = [];
+for (let i = 0; i < count; i++) {
+  const angle = (i / count) * Math.PI * 2;
+  const radius = 10;
+  ants.push({
+    x: Math.round(Math.cos(angle) * radius),
+    y: Math.round(Math.sin(angle) * radius),
+    dir: Math.floor(Math.random() * 4),
+  });
+}
+
+document.getElementById('antCountLabel').textContent = `(${ants.length} active)`;
+
+  drawGrid();
+});
+</script>
 </body>
 </html>
