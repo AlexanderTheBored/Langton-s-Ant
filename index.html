@@ -53,7 +53,7 @@
       width: 100px;
     }
 
-    #settingsPanel {
+    #settingsPanel, #eggPanel {
       display: none;
       position: absolute;
       bottom: 4.5rem;
@@ -66,6 +66,30 @@
       border-radius: 0.5rem;
       z-index: 20;
       min-width: 200px;
+    }
+
+    .speed-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .icon-buttons {
+      display: flex;
+      gap: 0.3rem;
+    }
+
+    .icon-buttons button {
+      all: unset; /* ← wipes all browser default styles */
+      font-size: 1.2rem;
+      color: white;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.5rem;
+      height: 1.5rem;
+      line-height: 1;
     }
   </style>
 </head>
@@ -80,10 +104,13 @@
   <span class="zoom-label">Zoom: <span id="zoomValue">1.0×</span></span>
 
 <input type="range" id="speedSlider" min="1" max="100" value="95" step="1" />
-<span class="zoom-label">
-  Speed: <span id="speedValue">20x</span>
-  <button id="settingsBtn" title="Settings" style="font-size: 1rem; background: none; border: none; color: white; cursor: pointer;">⚙️</button>
-</span>
+<div class="zoom-label speed-group">
+  <span>Speed: <span id="speedValue">20x</span></span>
+  <div class="icon-buttons">
+    <button id="settingsBtn" title="Settings">⚙️</button>
+    <button id="eggBtn" title="Egg">🥚</button>
+  </div>
+ </div>
 </div>
 
 <div id="settingsPanel">
@@ -93,6 +120,10 @@
   <span id="antCountLabel" style="margin-left: 0.5rem; color: #ccc;">(1 active)</span>
 </p>
   <button id="applySettingsBtn" style="margin-top: 0.5rem;">Apply</button>
+</div>
+
+<div id="eggPanel">
+  <!-- Egg panel content can go here -->
 </div>
 
 <script>
@@ -106,6 +137,8 @@ const speedSlider = document.getElementById('speedSlider');
 const speedValue = document.getElementById('speedValue');
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
+const eggBtn = document.getElementById('eggBtn');
+const eggPanel = document.getElementById('eggPanel');
 
 let zoom = 10;
 let grid = {};
@@ -246,7 +279,11 @@ canvas.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 canvas.addEventListener('mousedown', (e) => {
-  if (!followAnt) {
+  if (e.button === 0) { // Left mouse button
+    if (followAnt) {
+      followAnt = false;
+      followBtn.textContent = `Follow: OFF`;
+    }
     dragging = true;
     lastMouse.x = e.clientX;
     lastMouse.y = e.clientY;
@@ -310,6 +347,17 @@ drawGrid();
 settingsBtn.addEventListener('click', () => {
   const isVisible = settingsPanel.style.display === 'block';
   settingsPanel.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) {
+    eggPanel.style.display = 'none';
+  }
+});
+
+eggBtn.addEventListener('click', () => {
+  const isVisible = eggPanel.style.display === 'block';
+  eggPanel.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) {
+    settingsPanel.style.display = 'none';
+  }
 });
 
 const antCountInput = document.getElementById('antCountInput');
@@ -320,7 +368,7 @@ applySettingsBtn.addEventListener('click', () => {
 ants = [];
 for (let i = 0; i < count; i++) {
   const angle = (i / count) * Math.PI * 2;
-  const radius = 10;
+  const radius = 15;
   ants.push({
     x: Math.round(Math.cos(angle) * radius),
     y: Math.round(Math.sin(angle) * radius),
@@ -329,8 +377,16 @@ for (let i = 0; i < count; i++) {
 }
 
 document.getElementById('antCountLabel').textContent = `(${ants.length} active)`;
+console.log(`Ants created: ${ants.length}`);
 
   drawGrid();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault(); // Prevent default space bar behavior (e.g., scrolling)
+    running ? stopSimulation() : startSimulation();
+  }
 });
 </script>
 </body>
