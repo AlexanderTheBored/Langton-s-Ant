@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Langton's Ant</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #121212;
+      color: white;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      image-rendering: pixelated;
+      cursor: grab;
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      z-index: 10;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      background: #333;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    .zoom-label {
+      font-size: 0.9rem;
+    }
+
+    input[type="range"] {
+      width: 100px;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="antCanvas"></canvas>
+
+<div class="controls">
+  <button id="toggleBtn">Start</button>
+  <button id="followBtn">Follow: ON</button>
+
+  <span class="zoom-label">Zoom: <span id="zoomValue">1.0×</span></span>
+
+  <input type="range" id="speedSlider" min="10" max="1000" value="50" step="10" />
+  <span class="zoom-label">Speed: <span id="speedValue">20x</span></span>
+</div>
+
+<script>
+const canvas = document.getElementById('antCanvas');
+const ctx = canvas.getContext('2d');
+
+const toggleBtn = document.getElementById('toggleBtn');
+const followBtn = document.getElementById('followBtn');
+const zoomDisplay = document.getElementById('zoomValue');
+const speedSlider = document.getElementById('speedSlider');
+const speedValue = document.getElementById('speedValue');
+
+let zoom = 10;
+let grid = {};
+let ant = { x: 0, y: 0, dir: 0 };
+let running = false;
+let followAnt = true;
+let offsetX = 0;
+let offsetY = 0;
+let dragging = false;
+let lastMouse = { x: 0, y: 0 };
+let intervalDelay = parseInt(speedSlider.value);
+let intervalId = null;
+
+function getKey(x, y) {
+  return `${x},${y}`;
+}
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = window.innerWidth * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+  drawGrid();
+}
+
+function drawGrid() {
+  const width = canvas.width / window.devicePixelRatio;
+  const height = canvas.height / window.devicePixelRatio;
+  ctx.clearRect(0, 0, width, height);
+
+  const cellSize = zoom;
+  const gridSize = Math.floor(Math.min(width, height) / cellSize);
+
+  const centerX = width / 2;
+  const centerY = height / 2;
+
+  let cameraX = followAnt ? ant.x * cellSize : offsetX;
+  let cameraY = followAnt ? ant.y * cellSize : offsetY;
+
+  // Background
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, width, height);
+
+  // Grid lines
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  for (let y = -gridSize; y <= gridSize; y++) {
+    const screenY = centerY + (y * cellSize) - cameraY;
+    ctx.beginPath();
+    ctx.moveTo(0, screenY);
+    ctx.lineTo(width, screenY);
+    ctx.stroke();
+  }
+  for (let x = -gridSize; x <= gridSize; x++) {
+    const screenX = centerX + (x * cellSize) - cameraX;
+    ctx.beginPath();
+    ctx.moveTo(screenX, 0);
+    ctx.lineTo(screenX, height);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Draw cells
+  for (let key in grid) {
+    if (grid[key]) {
+      const [gx, gy] = key.split(',').map(Number);
+      const screenX = centerX + (gx * cellSize) - cameraX;
+      const screenY = centerY + (gy * cellSize) - cameraY;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(screenX, screenY, cellSize, cellSize);
+    }
+  }
+
+  // Draw ant
+  const antX = centerX + (ant.x * cellSize) - cameraX;
+  const antY = centerY + (ant.y * cellSize) - cameraY;
+  ctx.fillStyle = 'red';
+  ctx.fillRect(antX, antY, cellSize, cellSize);
+}
+
+function step() {
+  const key = getKey(ant.x, ant.y);
+  if (!grid[key]) {
+    ant.dir = (ant.dir + 1) % 4;
+    grid[key] = 1;
+  } else {
+    ant.dir = (ant.dir + 3) % 4;
+    grid[key] = 0;
+  }
+
+  switch (ant.dir) {
+    case 0: ant.y -= 1; break;
+    case 1: ant.x += 1; break;
+    case 2: ant.y += 1; break;
+    case 3: ant.x -= 1; break;
+  }
+
+  drawGrid();
+}
+
+function startSimulation() {
+  intervalId = setInterval(step, intervalDelay);
+  toggleBtn.textContent = 'Pause';
+  running = true;
+}
+
+function stopSimulation() {
+  clearInterval(intervalId);
+  intervalId = null;
+  toggleBtn.textContent = 'Start';
+  running = false;
+}
+
+toggleBtn.addEventListener('click', () => {
+  running ? stopSimulation() : startSimulation();
+});
+
+followBtn.addEventListener('click', () => {
+  followAnt = !followAnt;
+  followBtn.textContent = `Follow: ${followAnt ? 'ON' : 'OFF'}`;
+  drawGrid();
+});
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const delta = Math.sign(e.deltaY);
+  zoom *= delta > 0 ? 0.9 : 1.1;
+  zoom = Math.max(2, Math.min(80, zoom));
+  zoomDisplay.textContent = `${zoom.toFixed(1)}×`;
+  drawGrid();
+}, { passive: false });
+
+canvas.addEventListener('mousedown', (e) => {
+  if (!followAnt) {
+    dragging = true;
+    lastMouse.x = e.clientX;
+    lastMouse.y = e.clientY;
+    canvas.style.cursor = 'grabbing';
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (dragging && !followAnt) {
+    const dx = e.clientX - lastMouse.x;
+    const dy = e.clientY - lastMouse.y;
+    offsetX -= dx;
+    offsetY -= dy;
+    lastMouse.x = e.clientX;
+    lastMouse.y = e.clientY;
+    drawGrid();
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  dragging = false;
+  canvas.style.cursor = 'grab';
+});
+
+// Handle speed slider
+speedSlider.addEventListener('input', () => {
+  intervalDelay = parseInt(speedSlider.value);
+  const multiplier = (1000 / intervalDelay).toFixed(1);
+  speedValue.textContent = `${multiplier}x`;
+
+  if (running) {
+    stopSimulation();
+    startSimulation();
+  }
+});
+
+window.addEventListener('resize', resizeCanvas);
+
+// Init
+resizeCanvas();
+drawGrid();
+</script>
+
+</body>
+</html>
