@@ -35,12 +35,14 @@
     }
 
     button {
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
-      background: #333;
-      color: white;
-      border: none;
-      cursor: pointer;
+    padding: 0.5rem 1.2rem;
+    font-size: 1rem;
+    background: #333;
+    color: white;
+    border: none;
+    cursor: pointer;
+    min-width: 90px;
+    text-align: center;
     }
 
     .zoom-label {
@@ -62,7 +64,7 @@
 
   <span class="zoom-label">Zoom: <span id="zoomValue">1.0×</span></span>
 
-  <input type="range" id="speedSlider" min="10" max="1000" value="50" step="10" />
+<input type="range" id="speedSlider" min="1" max="100" value="95" step="1" />
   <span class="zoom-label">Speed: <span id="speedValue">20x</span></span>
 </div>
 
@@ -87,6 +89,8 @@ let dragging = false;
 let lastMouse = { x: 0, y: 0 };
 let intervalDelay = parseInt(speedSlider.value);
 let intervalId = null;
+
+let hoveringSpeedSlider = false;
 
 function getKey(x, y) {
   return `${x},${y}`;
@@ -117,11 +121,9 @@ function drawGrid() {
   let cameraX = followAnt ? ant.x * cellSize : offsetX;
   let cameraY = followAnt ? ant.y * cellSize : offsetY;
 
-  // Background
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, width, height);
 
-  // Grid lines
   ctx.save();
   ctx.strokeStyle = 'rgba(255,255,255,0.1)';
   ctx.lineWidth = 1;
@@ -141,7 +143,6 @@ function drawGrid() {
   }
   ctx.restore();
 
-  // Draw cells
   for (let key in grid) {
     if (grid[key]) {
       const [gx, gy] = key.split(',').map(Number);
@@ -152,7 +153,6 @@ function drawGrid() {
     }
   }
 
-  // Draw ant
   const antX = centerX + (ant.x * cellSize) - cameraX;
   const antY = centerY + (ant.y * cellSize) - cameraY;
   ctx.fillStyle = 'red';
@@ -203,6 +203,7 @@ followBtn.addEventListener('click', () => {
 });
 
 canvas.addEventListener('wheel', (e) => {
+  if (hoveringSpeedSlider) return;
   e.preventDefault();
   const delta = Math.sign(e.deltaY);
   zoom *= delta > 0 ? 0.9 : 1.1;
@@ -237,17 +238,35 @@ canvas.addEventListener('mouseup', () => {
   canvas.style.cursor = 'grab';
 });
 
-// Handle speed slider
+// Speed slider live control
 speedSlider.addEventListener('input', () => {
-  intervalDelay = parseInt(speedSlider.value);
+  // Use a logarithmic mapping for smoother speed control
+  // Higher slider value = faster speed
+  const sliderVal = parseInt(speedSlider.value);
+  // Map slider value (1-100) to intervalDelay (1000ms to 10ms) logarithmically
+  intervalDelay = Math.round(1000 * Math.pow(10/1000, sliderVal/100));
   const multiplier = (1000 / intervalDelay).toFixed(1);
   speedValue.textContent = `${multiplier}x`;
-
   if (running) {
     stopSimulation();
     startSimulation();
   }
 });
+
+// Scroll to adjust speed
+speedSlider.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  let newValue = parseInt(speedSlider.value);
+  const step = 1;
+  newValue += (e.deltaY > 0 ? -step : step); // scroll up = faster (right), scroll down = slower (left)
+  newValue = Math.max(parseInt(speedSlider.min), Math.min(parseInt(speedSlider.max), newValue));
+  speedSlider.value = newValue;
+  speedSlider.dispatchEvent(new Event('input'));
+}, { passive: false });
+
+// Detect hover for zoom-disable
+speedSlider.addEventListener('mouseenter', () => hoveringSpeedSlider = true);
+speedSlider.addEventListener('mouseleave', () => hoveringSpeedSlider = false);
 
 window.addEventListener('resize', resizeCanvas);
 
